@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.15)
 
 project(rvm_ncnn_gl)
 
-set(OpenCV_DIR "./3rdparty/opencv" CACHE PATH "Directory that contains OpenCVConfig.cmake")
+# find Opencv
+set(OpenCV_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/opencv" CACHE PATH "Directory that contains OpenCVConfig.cmake")
 
 message(STATUS "OpenCV_DIR: ${OpenCV_DIR}")
 
@@ -27,10 +28,23 @@ else()
     message(FATAL_ERROR "Error! OpenCV not found!")
 endif()
 
+#find vulkan
+find_package(Vulkan REQUIRED FATAL_ERROR)
+include_directories(${Vulkan_INCLUDE_DIRS})
+
+#find ncnn
+set(ncnn_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/ncnn/lib/cmake/ncnn" CACHE PATH "folder that contains ncnnConfig.cmake")
+find_package(ncnn REQUIRED)
+
+message(STATUS "ncnn_DIR : ${ncnn_DIR}")
+
 add_executable(rvm_ncnn_gl
     src/main.cpp
     src/rvm.h
     src/rvm.cpp
 )
 
-target_link_libraries(rvm_ncnn_gl ${OpenCV_LIBS})
+target_link_libraries(rvm_ncnn_gl 
+                        ${OpenCV_LIBS} 
+                        ${VULKAN_LIB_LIST} 
+                        ncnn)

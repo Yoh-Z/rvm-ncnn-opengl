@@ -1,13 +1,12 @@
 #include <vector>
 #include <iostream>
-#include <ncnn/gpu.h>
-#include "ClxNcnnMatting.h"
+#include <gpu.h>
+#include "rvm.h"
 
-#define NCNN_GPU 1
+#define NCNN_GPU 0
 
 RVM::RVM() :
 	mNet(nullptr),
-	flag(-1),
 	mH(0),
 	mW(0),
 	mPics(0),
@@ -18,31 +17,31 @@ RVM::RVM() :
 }
 RVM::~RVM() {
 	if (cv_pha != nullptr) delete[]cv_pha;
+#if NCNN_GPU
 	mNet->vulkan_device()->reclaim_blob_allocator(mNet->opt.blob_vkallocator);
 	mNet->vulkan_device()->reclaim_staging_allocator(mNet->opt.staging_vkallocator);
 	mNet->vulkan_device()->reclaim_blob_allocator(mNet->opt.workspace_vkallocator);
+#endif // NCNN_GPU
 }
 
 int RVM::m_init(int w, int h, const char* path, int nFlag) {
 	mW = w, mH = h;
-	if (w == 1920 && h == 1080) flag = 0;
-	else if (w == 1280 && h == 720) flag = 1;
-	else if (w == 800 && h == 450) flag = 2;
-	else flag = -1;
-	if (flag == -1) return 0;
 
-	mPics.resize(2);
-	mVkPics.resize(2);
-	for (int i = 0; i < 2; i++)
+	mPics.resize(4);
+	mVkPics.resize(4);
+	for (int i = 0; i < 4; i++)
 	{
-		mPics[i] = ncnn::Mat(_mSize[flag][0][i], _mSize[flag][1][i], _mSize[flag][2][i]), mPics[i].fill(0);
-		std::cout << _mSize[flag][0][i] << " " << _mSize[flag][1][i] << " " << _mSize[flag][2][i] << std::endl;
+		mPics[i] = ncnn::Mat(mSize[0][i], mSize[1][i], mSize[2][i]), mPics[i].fill(0);
+		std::cout << mSize[0][i] << " " << mSize[1][i] << " " << mSize[2][i] << std::endl;
 	}
-	mNet = new ncnn::Net();
+
+	mNet = std::make_shared<ncnn::Net>();
+
 	if (mNet == nullptr)
 	{
 		return 1;
 	}
+
 	if (nFlag == 1)
 	{
 		mNet->opt.use_vulkan_compute = 1;
@@ -53,15 +52,18 @@ int RVM::m_init(int w, int h, const char* path, int nFlag) {
 		mNet->opt.use_int8_arithmetic = false;
 	}
 
-	char model[256];
-	char param[256];
-	if (flag == 0)
-	{
-		strcpy(model, path); strcat(model, "..\\model\\rvm_mobilenetv3_fp32-1080-1920-opt.bin");
-		strcpy(param, path); strcat(param, "..\\model\\rvm_mobilenetv3_fp32-1080-1920-opt.param");
-	}
-	mNet->load_param(param);
-	mNet->load_model(model);
+	std::string model = path;
+	model += "\\..\\model\\rvm_mobilenetv3_fp32-1080-1920-opt.bin.bin";
+	std::string param = path;
+	param += "\\..\\model\\rvm_mobilenetv3_fp32-1080-1920-opt.bin.param";
+	
+	std::cout << model << std::endl;
+	std::cout << param << std::endl;
+
+	mNet->load_param(param.c_str());
+	mNet->load_model(model.c_str());
+
+	printf("load success!\n");
 
 	if (nFlag == 1)
 	{
@@ -88,28 +90,36 @@ int RVM::matting(cv::Mat& mPic, cv::Mat& mask, cv::Mat& foreground) {
 	long long time2 = cv::getTickCount();
 	std::cout << ((double)time2 - time1) / cv::getTickFrequency() << std::endl;
 
-	ncnn::Mat pha;
-
+	ncnn::Mat pha, fgr;
 	ex_matting.input("src", ncnn_in);
 	if (times == 0) {
 		ex_matting.input("r1i", mPics[0]);
-		ex_matting.input("r4i", mPics[1]);
+		ex_matting.input("r2i", mPics[1]);
+		ex_matting.input("r3i", mPics[2]);
+		ex_matting.input("r4i", mPics[3]);
 	}
 	else {
 		ex_matting.input("r1i", mVkPics[0]);
-		ex_matting.input("r4i", mVkPics[1]);
+		ex_matting.input("r2i", mVkPics[1]); 
+		ex_matting.input("r3i", mVkPics[2]);
+		ex_matting.input("r4i", mVkPics[3]);
 	}
 	
 #if NCNN_GPU
 	ncnn::VkCompute cmd(mNet->vulkan_device());
-	ex_matting.extract("r4o", mVkPics[1], cmd);
+	ex_matting.extract("r4o", mVkPics[3], cmd);
+	ex_matting.extract("r3o", mVkPics[2], cmd);
+	ex_matting.extract("r2o", mVkPics[1], cmd);
 	ex_matting.extract("r1o", mVkPics[0], cmd);
 	cmd.submit_and_wait();
 #else
-	ex_matting.extract("r4o", mPics[1]);
+	ex_matting.extract("r4o", mPics[3]);
+	ex_matting.extract("r3o", mPics[2]);
+	ex_matting.extract("r2o", mPics[1]);
 	ex_matting.extract("r1o", mPics[0]);
-#endif
+#endif // NCNN_GPU
 	ex_matting.extract("pha", pha);
+	ex_matting.extract("fgr", fgr);
 	ex_matting.clear();
 
 	float *pha_data = (float*)pha.data;
