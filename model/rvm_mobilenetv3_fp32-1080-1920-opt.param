@@ -277,9 +277,9 @@ ReLU             Relu_426                 1 1 1136 917
 Split            splitncnn_33             1 2 917 917_splitncnn_0 917_splitncnn_1
 Convolution      Conv_427                 1 1 917_splitncnn_1 918 0=4 1=1 11=1 2=1 12=1 3=1 13=1 4=0 14=0 15=0 16=0 5=1 6=64
 Slice            Split_428                1 2 918 919 920 -23300=2,3,-233 1=0
-Reduction        ReduceMean_429           1 1 src_splitncnn_2 921 0=3 1=0 -23303=1,0 5=1
+Reduction        ReduceMean_429           1 1 src_splitncnn_2 921 0=3 1=0 -23303=1,1 4=1
 Concat           Concat_430               2 1 src_splitncnn_1 921 922 0=0
-Reduction        ReduceMean_431           1 1 395_splitncnn_1 923 0=3 1=0 -23303=1,0 5=1
+Reduction        ReduceMean_431           1 1 395_splitncnn_1 923 0=3 1=0 -23303=1,1 4=1
 Concat           Concat_432               2 1 395_splitncnn_0 923 924 0=0
 Split            splitncnn_34             1 4 924 924_splitncnn_0 924_splitncnn_1 924_splitncnn_2 924_splitncnn_3
 Concat           Concat_433               2 1 919 920 925 0=0

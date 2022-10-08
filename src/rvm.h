@@ -17,6 +17,7 @@ private:
 	int times;
 	int mW, mH;
 	uchar* cv_pha;
+	uchar* cv_fgr;
 	std::shared_ptr<ncnn::Net> mNet;
 	std::vector<ncnn::Mat> mPics;
 	std::vector<ncnn::VkMat> mVkPics;

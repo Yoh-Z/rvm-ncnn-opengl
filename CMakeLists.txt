@@ -48,3 +48,4 @@ target_link_libraries(rvm_ncnn_gl
                         ${OpenCV_LIBS} 
                         ${VULKAN_LIB_LIST} 
                         ncnn)
+

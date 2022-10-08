@@ -5,6 +5,20 @@
 
 #define NCNN_GPU 0
 
+int Plannar2Packed(float* pha_data, float* fgr_data, uchar* pha, uchar* fgr, int width, int height) {
+	if (pha_data == nullptr || fgr_data == nullptr) return 1;
+	int mW = width, mH = height;
+	for (int i = 0; i < mH; i++) {
+		for (int j = 0; j < mW; j++) {
+			fgr[i * mW * 3 + j * 3 + 2] = static_cast<uchar>(fgr_data[2 * mW * mH + i * mW + j] * 255.0);
+			fgr[i * mW * 3 + j * 3 + 1] = static_cast<uchar>(fgr_data[1 * mW * mH + i * mW + j] * 255.0);
+			fgr[i * mW * 3 + j * 3 + 0] = static_cast<uchar>(fgr_data[0 * mW * mH + i * mW + j] * 255.0);
+			pha[i * mW + j] = static_cast<uchar>(pha_data[i * mW + j] * 255.0);
+		}
+	}
+	return 0;
+}
+
 RVM::RVM() :
 	mNet(nullptr),
 	mH(0),
@@ -53,9 +67,9 @@ int RVM::m_init(int w, int h, const char* path, int nFlag) {
 	}
 
 	std::string model = path;
-	model += "\\..\\model\\rvm_mobilenetv3_fp32-1080-1920-opt.bin.bin";
+	model += "\\..\\model\\rvm_mobilenetv3_fp32-1080-1920-opt.bin";
 	std::string param = path;
-	param += "\\..\\model\\rvm_mobilenetv3_fp32-1080-1920-opt.bin.param";
+	param += "\\..\\model\\rvm_mobilenetv3_fp32-1080-1920-opt.param";
 	
 	std::cout << model << std::endl;
 	std::cout << param << std::endl;
@@ -73,6 +87,7 @@ int RVM::m_init(int w, int h, const char* path, int nFlag) {
 	}
 
 	cv_pha = new uchar[mW * mH];
+	cv_fgr = new uchar[mW * mH * 3];
 
 	return 0;
 }
@@ -88,7 +103,7 @@ int RVM::matting(cv::Mat& mPic, cv::Mat& mask, cv::Mat& foreground) {
 	const float norms[3] = { 1 / 255.0, 1 / 255.0, 1 / 255.0 };
 	ncnn_in.substract_mean_normalize(means, norms);
 	long long time2 = cv::getTickCount();
-	std::cout << ((double)time2 - time1) / cv::getTickFrequency() << std::endl;
+	std::cout << (static_cast<double>(time2) - time1) / cv::getTickFrequency() << std::endl;
 
 	ncnn::Mat pha, fgr;
 	ex_matting.input("src", ncnn_in);
@@ -122,11 +137,14 @@ int RVM::matting(cv::Mat& mPic, cv::Mat& mask, cv::Mat& foreground) {
 	ex_matting.extract("fgr", fgr);
 	ex_matting.clear();
 
-	float *pha_data = (float*)pha.data;
-	int ret = chw2whc(pha_data, cv_pha);
+	float *pha_data = static_cast<float*>(pha.data);
+	float* fgr_data = static_cast<float*>(fgr.data);
+	//int ret = chw2whc(pha_data, cv_pha);
+	int ret = Plannar2Packed(pha_data, fgr_data, cv_pha, cv_fgr, mW, mH);
 	if (ret == 1) return 1;
 	
 	mask = cv::Mat(mPic.size(), CV_8UC1, cv_pha);
+	foreground = cv::Mat(mPic.size(), CV_8UC3, cv_fgr);
 #if NCNN_GPU
 	++times;
 #endif
@@ -149,11 +167,11 @@ int RVM::draw(cv::Mat& mPic, cv::Mat& mask, cv::Mat& bg, cv::Mat& fgr) {
 		{
 			data = alpha.at<uchar>(i, j);
 			float alpha = (float)data / 255;
-			cv::Vec3b bgcolor = bg.at < cv::Vec3b>(i, j);
+			/*cv::Vec3b bgcolor = bg.at < cv::Vec3b>(i, j);*/
 
-			mPic.at < cv::Vec3b>(i, j)[0] = mPic.at < cv::Vec3b>(i, j)[0] * alpha + (1 - alpha) * bgcolor[0];
-			mPic.at < cv::Vec3b>(i, j)[1] = mPic.at < cv::Vec3b>(i, j)[1] * alpha + (1 - alpha) * bgcolor[1];
-			mPic.at < cv::Vec3b>(i, j)[2] = mPic.at < cv::Vec3b>(i, j)[2] * alpha + (1 - alpha) * bgcolor[2];
+			mPic.at < cv::Vec3b>(i, j)[0] = mPic.at < cv::Vec3b>(i, j)[0] * alpha + (1 - alpha) * color[0];
+			mPic.at < cv::Vec3b>(i, j)[1] = mPic.at < cv::Vec3b>(i, j)[1] * alpha + (1 - alpha) * color[1];
+			mPic.at < cv::Vec3b>(i, j)[2] = mPic.at < cv::Vec3b>(i, j)[2] * alpha + (1 - alpha) * color[2];
 		}
 	}
 
@@ -173,7 +191,7 @@ int RVM::chw2whc(float* pha_data, uchar * pha)
 		for (int j = 0; j < mW; j++)
 		{
 			dst = len + j;
-			pha[dst] = (uchar)(pha_data[dst] * 255.0f);
+			pha[dst] = static_cast<uchar>(pha_data[dst] * 255.0f);
 		}
 	}
 

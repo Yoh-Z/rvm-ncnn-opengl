@@ -1,3 +1,5 @@
-build
+build*
 3rdparty/
 .vscode
+*.jpg
+*.png
